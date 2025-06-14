@@ -1,60 +1,52 @@
 # -*- coding: utf-8 -*-
 # هذا الكود هو لبوت تيليجرام مصمم لاستقبال طلبات المنتجات من المشترين لمشروع KABA Project.
-# تم تحديثه بالكامل ليتوافق مع أحدث الإصدارات من مكتبة python-telegram-bot (الإصدار 20.x وما فوق).
-# يرجى نسخ هذا الكود بالكامل ولصقه في ملف app.py الخاص بك على Hugging Face Spaces.
+# تم تحديثه بالكامل ليتوافق مع أحدث الإصدارات من مكتبة python-telegram-bot (الإصدار 21.x وما فوق).
+# هذا الإصدار معد خصيصاً للاستضافة على Render.com.
 
 # استيراد الوحدات اللازمة من مكتبة telegram.ext
-# في الإصدارات الجديدة، نستخدم Application بدلاً من Updater و Dispatcher.
-# كما أن 'filters' تُستورد كوحدة منفصلة.
+# نستخدم Application بدلاً من Updater و Dispatcher في الإصدارات الأحدث.
 from telegram.ext import Application, CommandHandler, MessageHandler
-from telegram.ext import filters # <--- هذا السطر صحيح للاستيراد
-import logging # لتسجيل الأخطاء والرسائل (مفيد جداً للتصحيح)
+from telegram.ext import filters # استيراد وحدة الفلاتر
+import logging # لتسجيل الأخطاء والرسائل
 import re # لاستخدام التعبيرات النمطية للتحقق من رقم الهاتف
-import os # لاستخدام متغيرات البيئة لقراءة التوكن ورابط الـ Webhook
+import os # لاستخدام متغيرات البيئة لقراءة التوكن وروابط الويب هوك
 
 # تفعيل تسجيل الأخطاء والرسائل.
-# هذا يساعدك في رؤية ما يفعله البوت في الطرفية (Terminal) وأي أخطاء قد تحدث.
+# هذا يساعد في رؤية ما يفعله البوت في سجلات Render.
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
-# لتقليل رسائل التحذير التي قد تأتي من المكتبات الداخلية (مثل httpx)
+# لتقليل رسائل التحذير التي قد تأتي من المكتبات الداخلية مثل httpx
 logging.getLogger('httpx').setLevel(logging.WARNING) 
 
-# 1. ضع التوكن الخاص ببوتك هنا (استبدل 'YOUR_BOT_TOKEN' بالتوكن الحقيقي الذي حصلت عليه من BotFather)
-# هذا التوكن هو المفتاح الذي يربط الكود الخاص بك بالبوت على تيليجرام.
-# نقوم بقراءة التوكن من متغيرات البيئة لأغراض الأمان عند الاستضافة.
+# قراءة توكن البوت من متغيرات البيئة لأغراض الأمان عند الاستضافة.
+# يجب تعيين متغير البيئة 'TELEGRAM_BOT_TOKEN' في إعدادات Render.
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN') 
 if not TOKEN:
-    logging.error("TELEGRAM_BOT_TOKEN environment variable not set.")
-    raise ValueError("Environment variable TELEGRAM_BOT_TOKEN is not set. Please set it in Hugging Face Space secrets.")
+    logging.error("TELEGRAM_BOT_TOKEN environment variable not set. Please set it in Render environment variables.")
+    raise ValueError("Environment variable TELEGRAM_BOT_TOKEN is not set.")
 
 # قاموس لتخزين معلومات المستخدم مؤقتاً ومرحلة المحادثة الحالية لكل مستخدم.
-# هذا يستخدم لتتبع حالة المحادثة لكل مستخدم بشكل منفصل عبر المراحل المختلفة.
-# ملاحظة هامة: في تطبيق حقيقي (للإنتاج)، يجب استخدام قاعدة بيانات (مثل SQLite, PostgreSQL, MongoDB)
-# لتخزين هذه البيانات بشكل دائم وآمن، بدلاً من تخزينها في الذاكرة (التي تُمسح عند إيقاف البوت).
 user_data = {}
 
 # دالة التعامل مع أمر /start
-# هذه الدالة تُستدعى عندما يرسل المستخدم الأمر /start إلى البوت.
-# في الإصدارات الجديدة، يجب أن تكون دوال المعالجة (handlers) غير متزامنة (async).
+# هذه الدالة تُستدعى عندما يرسل المستخدم الأمر /start. يجب أن تكون دالة غير متزامنة (async).
 async def start(update, context):
     user_id = update.message.from_user.id
-    # إعادة تعيين بيانات المستخدم ومرحلته عند بدء جديد، لضمان محادثة نظيفة.
+    # إعادة تعيين بيانات المستخدم ومرحلته عند بدء جديد.
     user_data[user_id] = {'stage': 'asking_product_name'} 
     
-    await update.message.reply_text( # <--- يجب استخدام 'await' مع الدوال غير المتزامنة
+    await update.message.reply_text(
         'أهلاً بك في بوت KABA Project لطلبات الشراء! 🛍️ أنا هنا لمساعدتك في الحصول على منتجاتك العالمية بكل سهولة.\n'
         'للبدء، يرجى تزويدي بالمعلومات التالية عن المنتج الذي تبحث عنه.'
     )
-    await update.message.reply_text('ما هو اسم المنتج الذي تبحث عنه؟ 📝') # <--- استخدام 'await' هنا أيضاً
+    await update.message.reply_text('ما هو اسم المنتج الذي تبحث عنه؟ 📝')
 
 # دالة للتعامل مع رسائل المستخدم (النصية والصور)
 # هذه الدالة هي القلب النابض للبوت، حيث تعالج جميع رسائل المستخدم بناءً على مرحلته الحالية.
-# يجب أن تكون هذه الدالة أيضاً غير متزامنة (async).
 async def handle_message(update, context):
     user_id = update.message.from_user.id
     
     if user_id not in user_data:
-        # إذا لم يكن المستخدم قد بدأ محادثة بعد، نطلب منه البدء لتجنب الأخطاء.
         await update.message.reply_text('الرجاء البدء باستخدام أمر /start أولاً.')
         return
 
@@ -62,7 +54,6 @@ async def handle_message(update, context):
 
     # معالجة إجابات المستخدم بناءً على المرحلة الحالية
     if current_stage == 'asking_product_name':
-        # التحقق إذا كانت الرسالة نصية قبل حفظها.
         if update.message.text:
             user_data[user_id]['product_name'] = update.message.text
             user_data[user_id]['stage'] = 'asking_price'
@@ -95,7 +86,7 @@ async def handle_message(update, context):
 
     elif current_stage == 'asking_delivery_method':
         if update.message.text:
-            user_response = update.message.text.lower().strip() # تحويل الإجابة إلى حروف صغيرة وإزالة المسافات
+            user_response = update.message.text.lower().strip() 
             
             if user_response in ['2', 'خيار 2', 'اثنين', 'خيار اثنين']:
                 user_data[user_id]['delivery_method'] = 'delivery_to_home'
@@ -103,7 +94,6 @@ async def handle_message(update, context):
                 await update.message.reply_text('يرجى إخبارنا في أي مدينة/منطقة في الجزائر أنت مقيم؟ 🏘️')
             elif user_response in ['1', 'خيار 1', 'واحد', 'خيار واحد']:
                 user_data[user_id]['delivery_method'] = 'meet_traveler'
-                # تخطي سؤال المدينة والانتقال مباشرة للسؤال التالي
                 user_data[user_id]['stage'] = 'asking_additional_notes' 
                 await update.message.reply_text(
                     'هل لديك أي ملاحظات إضافية أو تفضيلات خاصة بخصوص طلبك؟ '
@@ -128,19 +118,16 @@ async def handle_message(update, context):
             await update.message.reply_text('عذراً، يرجى إدخال المدينة/المنطقة كنص.')
 
     elif current_stage == 'asking_additional_notes':
-        # إذا أرسل المستخدم صورة في هذه المرحلة
         if update.message.photo:
             user_data[user_id]['additional_notes'] = update.message.caption if update.message.caption else "صورة مرفقة"
-            user_data[user_id]['product_image_id'] = update.message.photo[-1].file_id # حفظ ID الصورة لأغراض لاحقة
+            user_data[user_id]['product_image_id'] = update.message.photo[-1].file_id 
             user_data[user_id]['stage'] = 'asking_more_info_after_photo'
             await update.message.reply_text('شكراً على الصورة! هل من معلومات إضافية أخرى؟')
-        # إذا أرسل المستخدم نصاً (ملاحظات أو رابط)
         elif update.message.text:
             user_data[user_id]['additional_notes'] = update.message.text
             user_data[user_id]['stage'] = 'asking_for_photo'
             await update.message.reply_text('هل تريد إرفاق بصورة؟ 🖼️')
         else:
-            # إذا لم يرسل نصاً ولا صورة (مثلاً ملصق أو ملف غير مدعوم)
             user_data[user_id]['additional_notes'] = "لا يوجد ملاحظات إضافية"
             user_data[user_id]['stage'] = 'asking_for_photo'
             await update.message.reply_text('عذراً، لم أفهم. يرجى إرسال صورة أو كتابة ملاحظاتك. هل تريد إرفاق بصورة؟ 🖼️')
@@ -150,43 +137,35 @@ async def handle_message(update, context):
             user_data[user_id]['more_info_after_photo'] = update.message.text
         else:
             user_data[user_id]['more_info_after_photo'] = "لا توجد معلومات إضافية"
-        # الانتقال إلى مرحلة طلب اسم المستخدم
         user_data[user_id]['stage'] = 'asking_username' 
-        await update.message.reply_text('يرجى إدخال اسم المستخدم الخاص بك على تيليجرام (يبدأ بـ @). 👤')
+        await update.message.reply_text('يرجى إدخال اسم المستخدم الخاص بك على تيليجرام (يبدأ بـ @). �')
     
     elif current_stage == 'asking_for_photo':
-        # المستخدم يرسل صورة رداً على سؤال "هل تريد إرفاق بصورة؟"
         if update.message.photo:
-            user_data[user_id]['product_image_id'] = update.message.photo[-1].file_id # حفظ ID الصورة
-            # الانتقال إلى مرحلة طلب اسم المستخدم بعد الصورة
+            user_data[user_id]['product_image_id'] = update.message.photo[-1].file_id 
             user_data[user_id]['stage'] = 'asking_username' 
             await update.message.reply_text('شكراً على الصورة! يرجى إدخال اسم المستخدم الخاص بك على تيليجرام (يبدأ بـ @). 👤')
-        # المستخدم يرسل نصاً (مثلاً "لا أريد صورة" أو "لا")
         elif update.message.text:
             if update.message.text.lower().strip() in ['لا', 'لا أريد صورة', 'لا لا', 'no']:
                 user_data[user_id]['product_image_id'] = 'لم يتم إرفاق صورة'
             else:
                 user_data[user_id]['product_image_id'] = f"نص بدلاً من صورة: {update.message.text}"
-            # الانتقال إلى مرحلة طلب اسم المستخدم بعد النص
             user_data[user_id]['stage'] = 'asking_username' 
             await update.message.reply_text('حسناً. يرجى إدخال اسم المستخدم الخاص بك على تيليجرام (يبدأ بـ @). 👤')
         else:
-            # إذا لم يرسل نصاً ولا صورة (مثلاً ملصق)
             await update.message.reply_text('عذراً، لم أفهم. يرجى إرسال صورة أو كتابة "لا" إذا كنت لا تريد إرفاق صورة.')
-            # نبقى في نفس المرحلة حتى يتم إرسال إجابة صالحة
             return 
 
-    elif current_stage == 'asking_username': # <--- مرحلة جديدة لطلب اسم المستخدم
+    elif current_stage == 'asking_username':
         if update.message.text:
             username = update.message.text.strip()
-            # يمكن إضافة تحقق بسيط هنا أن الاسم يبدأ بـ '@' إذا أردت
-            if username.startswith('@') and len(username) > 1: # إضافة تحقق بسيط على طول الاسم
+            if username.startswith('@') and len(username) > 1:
                 user_data[user_id]['telegram_username'] = username
-                user_data[user_id]['stage'] = 'asking_phone_number' # الانتقال للمرحلة التالية (رقم الهاتف)
+                user_data[user_id]['stage'] = 'asking_phone_number' 
                 await update.message.reply_text('شكراً! يرجى تزويدنا برقم هاتفك للتواصل معك بشأن طلبك. 📞 (مثال: 07xxxxxxx)')
             else:
                 await update.message.reply_text('يرجى إدخال اسم المستخدم الصحيح (يجب أن يبدأ بـ "@" ولا يكون فارغاً). 👤')
-                return # البقاء في نفس المرحلة حتى يتم إدخال اسم مستخدم صحيح
+                return 
         else:
             await update.message.reply_text('عذراً، يرجى إدخال اسم المستخدم كنص.')
             return
@@ -194,19 +173,16 @@ async def handle_message(update, context):
     elif current_stage == 'asking_phone_number':
         if update.message.text:
             phone_number = update.message.text.strip()
-            # التحقق من أن رقم الهاتف يتكون من 10 أرقام فقط (مثال جزائري)
-            if re.fullmatch(r'\d{10}', phone_number): # `\d{10}` تعني 10 أرقام بالضبط
+            if re.fullmatch(r'\d{10}', phone_number):
                 user_data[user_id]['phone_number'] = phone_number
-                user_data[user_id]['stage'] = 'completed' # انتهاء مراحل السؤال
+                user_data[user_id]['stage'] = 'completed' 
                 
-                # بناء رسالة التأكيد النهائية بملخص الطلب
                 summary = (
                     f"شكراً لك! لقد تلقينا طلبك للمنتج:\n"
                     f"🔗 اسم المنتج: {user_data[user_id].get('product_name', 'غير متوفر')}\n"
                     f"💰 السعر التقريبي: {user_data[user_id].get('product_price', 'غير متوفر')}\n"
                     f"📦 الأبعاد/الوزن: {user_data[user_id].get('product_dimensions', 'غير متوفر')}\n"
                 )
-                # إضافة طريقة الاستلام ومعلومات المدينة إذا اختار التوصيل للمنزل
                 if user_data[user_id].get('delivery_method') == 'delivery_to_home':
                     summary += f"🏠 طريقة الاستلام: توصيل للمنزل\n"
                     summary += f"📍 مدينة الاستلام: {user_data[user_id].get('delivery_city', 'غير متوفر')}\n"
@@ -217,7 +193,6 @@ async def handle_message(update, context):
                     f"📝 ملاحظات إضافية: {user_data[user_id].get('additional_notes', 'غير متوفر')}\n"
                 )
                 
-                # إضافة معلومات الصورة بناءً على ما تم جمعه
                 if user_data[user_id].get('product_image_id') == 'لم يتم إرفاق صورة':
                      summary += f"🖼️ صورة المنتج: لم يتم إرفاق صورة\n"
                 elif user_data[user_id].get('product_image_id') and user_data[user_id].get('product_image_id').startswith("نص بدلاً من صورة:"):
@@ -227,7 +202,6 @@ async def handle_message(update, context):
                 else:
                      summary += f"🖼️ صورة المنتج: غير متوفرة\n"
 
-                # إضافة اسم المستخدم الجديد
                 summary += f"👤 اسم المستخدم تيليجرام: {user_data[user_id].get('telegram_username', 'غير متوفر')}\n" 
 
                 summary += (
@@ -250,44 +224,36 @@ async def handle_message(update, context):
                     logging.error(f"فشل حفظ البيانات في الملف: {e}")
                     await update.message.reply_text("عذراً، حدث خطأ أثناء حفظ طلبك. يرجى المحاولة لاحقاً.")
 
-                # مسح بيانات المستخدم من الذاكرة بعد اكتمال الطلب (للسماح بطلب جديد نظيف للمستخدم نفسه لاحقاً)
                 del user_data[user_id] 
 
             else:
                 await update.message.reply_text('يرجى كتابة رقم هاتفك بالطريقة الصحيحة (10 أرقام فقط). 🚫📞')
-                # البقاء في نفس المرحلة لكي يكرر المستخدم إدخال الرقم الصحيح
-                return # هام جداً لكي لا ينتقل البوت إلى مرحلة أخرى بالخطأ
+                return
         else:
             await update.message.reply_text('عذراً، يرجى إدخال رقم هاتفك كنص.')
     
     else:
-        # رسالة افتراضية إذا لم يتم التعرف على المرحلة (مثلاً إذا أرسل المستخدم شيئاً غير متوقع في مرحلة غير متوقعة)
         await update.message.reply_text('عذراً، لم أفهم طلبك. يرجى البدء من جديد باستخدام أمر /start.')
 
 
 # دالة رئيسية لتشغيل البوت
 def main():
     # 2. إنشاء كائن Application وإدخال التوكن الخاص بك.
-    # Application هو البديل الحديث لـ Updater و Dispatcher في الإصدارات الأحدث.
     application = Application.builder().token(TOKEN).build()
 
     # 3. تسجيل معالجات الأوامر والرسائل
-    # معالج لأمر /start
     application.add_handler(CommandHandler("start", start)) 
-    
-    # معالج للرسائل النصية التي ليست أوامر AND للصور
-    # نستخدم filters.TEXT للمسجات النصية و filters.PHOTO للمسجات التي تحوي صور
     application.add_handler(MessageHandler(filters.TEXT | filters.PHOTO, handle_message))
 
-    # 4. بدء تشغيل البوت (Webhooks) - الطريقة المفضلة للاستضافة
-    # يجب تعيين متغير البيئة HF_SPACE_HOST في Hugging Face Space secrets.
-    WEBHOOK_URL = os.environ.get('HF_SPACE_HOST')
-
+    # 4. بدء تشغيل البوت (Webhooks) - الطريقة المفضلة للاستضافة على Render.com
+    # Render يوفر متغير البيئة RENDER_EXTERNAL_URL الذي يحتوي على رابط خدمة الويب الخاصة بك.
+    WEBHOOK_URL = os.environ.get('RENDER_EXTERNAL_URL') 
+    
     if not WEBHOOK_URL:
-        logging.error("HF_SPACE_HOST environment variable not set. Webhook might not work correctly.")
-        raise ValueError("Environment variable HF_SPACE_HOST is not set. Please set it in Hugging Face Space secrets to your Space URL.")
+        logging.error("RENDER_EXTERNAL_URL environment variable not set. Webhook might not work correctly.")
+        raise ValueError("Environment variable RENDER_EXTERNAL_URL is not set. Please ensure it's set on Render.")
 
-    PORT = int(os.environ.get("PORT", "8080")) # Hugging Face Spaces يوفر متغير بيئة PORT
+    PORT = int(os.environ.get("PORT", "8080")) # Render يوفر متغير بيئة PORT
 
 
     application.run_webhook(
@@ -301,4 +267,4 @@ def main():
 # تشغيل الدالة الرئيسية عند بدء تشغيل السكربت (أمر شائع في Python)
 if __name__ == '__main__':
     main()
-
+�
